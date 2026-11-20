@@ -69,6 +69,7 @@ details summary{cursor:pointer;font-weight:700;color:#cfe3f3;margin:6px 2px}
  </div>
 </div>
 
+<div id="ifr" class="msg warn"></div>
 <details open><summary>🔧 Diagnóstico de este dispositivo</summary>
 <div class="diag" id="diag">Midiendo…</div>
 <button class="btn2" id="bCopy">📋 Copiar el informe para mandárselo a Claude</button>
@@ -212,6 +213,8 @@ const POSTA={v:1,id:'P7K2Q9',nombre:'De Tercera a Primera',club:'Defensores del 
 const C1='#295eae';
 const L=[];const log=s=>{L.push(s);document.getElementById('diag').textContent=L.join('\n')};
 const $=id=>document.getElementById(id);
+const IFR=(()=>{try{return window.top!==window.self}catch(e){return true}})();
+function openTop(){const w=window.open(location.href,'_blank');log('Abrir en pestaña propia: '+(w?'se abrió':'bloqueado'))}
 const msg=(t,k)=>{const m=$('msg');m.className='msg on '+(k||'ok');m.innerHTML=t};
 const b64u8=b=>{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u};
 const u8b64=u=>{let s='';const C=0x8000;for(let i=0;i<u.length;i+=C)s+=String.fromCharCode.apply(null,u.subarray(i,i+C));return btoa(s)};
@@ -277,8 +280,8 @@ function pickFiles(){if(!navigator.canShare)return null;for(const k of ['posta',
  for(const k of ['posta','txt','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f]}))return{fs:[f],k,both:false}}catch(e){}}return null}
 function download(f){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}
 $('bShare').onclick=async()=>{await refresh();const p=pickFiles();
- if(!p||!navigator.share){download(FILES.posta||FILES.json);download(CARD);try{await navigator.clipboard.writeText(TEXTO())}catch(e){}
-  msg('Este navegador no puede compartir archivos directamente. Se descargaron el archivo y la tarjeta, y el texto quedó copiado: mandáselos a Martín desde WhatsApp.','warn');log('Pasar la posta: sin compartir directo → descarga');lockIt();return}
+ if(!p||!navigator.share){download(FILES.posta||FILES.json);download(CARD);let cp=false;try{await navigator.clipboard.writeText(TEXTO());cp=true}catch(e){}
+  msg('Desde acá no se puede compartir directo'+(IFR?' (la página está dentro de otra página, que lo bloquea)':'')+'. Se descargaron el archivo y la tarjeta: mandáselos a Martín desde WhatsApp'+(cp?'; el texto quedó copiado para pegarlo.':', con este texto:<textarea readonly style="margin-top:6px;min-height:80px" onfocus="this.select()">'+TEXTO()+'</textarea>')+(IFR?'<button class="btn2" onclick="openTop()">↗️ Abrir esta página en su propia pestaña</button>':''),'warn');log('Portapapeles: '+(cp?'OK':'bloqueado'));log('Pasar la posta: sin compartir directo → descarga');lockIt();return}
  try{await navigator.share({files:p.fs,text:TEXTO(),title:'Posta De Tercera a Primera'});
   msg('Listo. Se compartió '+(p.both?'el archivo y la tarjeta':'el archivo')+' (formato '+p.k+').'+(p.both?'':' La tarjeta va aparte: usá «Compartir solo la tarjeta».'),'ok');log('Pasar la posta: compartido OK con formato '+p.k+(p.both?' + tarjeta':''));lockIt()}
  catch(e){if(e.name==='AbortError'){msg('Cancelaste el envío. La posta sigue en tus manos.','warn');log('Pasar la posta: cancelado por la persona')}else{msg('No se pudo compartir ('+e.name+'). Probá con «Guardar el archivo».','err');log('Pasar la posta: ERROR '+e.name+' '+e.message)}}};
@@ -301,4 +304,5 @@ $('fin').onchange=async e=>{const f=e.target.files[0],R=$('recv');R.className='r
  catch(err){R.innerHTML='❌ No se pudo abrir: '+err.message;log('Recibir: ERROR '+f.name+' '+err.message)}};
 $('bCopy').onclick=async()=>{try{await navigator.clipboard.writeText(L.join('\n'));$('bCopy').textContent='✅ Copiado'}catch(e){const r=document.createRange();r.selectNodeContents($('diag'));getSelection().removeAllRanges();getSelection().addRange(r);$('bCopy').textContent='Seleccioná y copiá el texto de arriba'}};
 prepare();
+if(IFR){const d=$('ifr');d.className='msg on warn';d.innerHTML='Esta página se abrió dentro de otra (por ejemplo, el sitio o un visor de archivos), y eso bloquea el menú «Compartir». Para la prueba completa, abrila en su propia pestaña: <button class="btn2" onclick="openTop()">↗️ Abrir en su propia pestaña</button>'}
 </script></body></html>
