@@ -56,7 +56,15 @@ details summary{cursor:pointer;font-weight:700;color:#cfe3f3;margin:6px 2px}
   <button class="btn2" id="bSave">💾 Guardar el archivo en el dispositivo</button>
   <button class="btn2" id="bCard">🖼️ Compartir solo la tarjeta</button>
   <div class="msg" id="msg"></div>
-  <div class="lock" id="lock">🔒 Pasaste la posta. Este archivo ya no se puede seguir jugando en este dispositivo.<br><button class="btn2" style="margin-top:10px" onclick="unlock()">(Prototipo) Volver a probar</button></div>
+  <details style="margin-top:10px"><summary style="color:var(--hd2)">🧪 Probar cada formato por separado</summary>
+  <div style="font-size:13px;margin:6px 0">Cada botón intenta compartir un solo formato. Anotá cuáles abren el menú del teléfono.</div>
+  <button class="btn2" onclick="tryF(['card'])">Solo la tarjeta (.jpg)</button>
+  <button class="btn2" onclick="tryF(['txt'])">Archivo .txt (comprimido en texto)</button>
+  <button class="btn2" onclick="tryF(['posta'])">Archivo .posta (comprimido)</button>
+  <button class="btn2" onclick="tryF(['json'])">Archivo .json (sin comprimir)</button>
+  <button class="btn2" onclick="tryF(['txt','card'])">.txt + tarjeta</button>
+ </details>
+ <div class="lock" id="lock">🔒 Pasaste la posta. Este archivo ya no se puede seguir jugando en este dispositivo.<br><button class="btn2" style="margin-top:10px" onclick="unlock()">(Prototipo) Volver a probar</button></div>
  </div>
 </div>
 
@@ -276,10 +284,10 @@ async function prepare(){
  }
  log('—');
 }
-function pickFiles(){if(!navigator.canShare)return null;for(const k of ['posta','txt','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f,CARD]}))return{fs:[f,CARD],k,both:true}}catch(e){}}
- for(const k of ['posta','txt','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f]}))return{fs:[f],k,both:false}}catch(e){}}return null}
+function pickFiles(){if(!navigator.canShare)return null;for(const k of ['txt','posta','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f,CARD]}))return{fs:[f,CARD],k,both:true}}catch(e){}}
+ for(const k of ['txt','posta','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f]}))return{fs:[f],k,both:false}}catch(e){}}return null}
 function download(f){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}
-$('bShare').onclick=async()=>{await refresh();const p=pickFiles();
+$('bShare').onclick=async()=>{const p=pickFiles();
  if(!p||!navigator.share){download(FILES.posta||FILES.json);download(CARD);let cp=false;try{await navigator.clipboard.writeText(TEXTO());cp=true}catch(e){}
   msg('Desde acá no se puede compartir directo'+(IFR?' (la página está dentro de otra página, que lo bloquea)':'')+'. Se descargaron el archivo y la tarjeta: mandáselos a Martín desde WhatsApp'+(cp?'; el texto quedó copiado para pegarlo.':', con este texto:<textarea readonly style="margin-top:6px;min-height:80px" onfocus="this.select()">'+TEXTO()+'</textarea>')+(IFR?'<button class="btn2" onclick="openTop()">↗️ Abrir esta página en su propia pestaña</button>':''),'warn');log('Portapapeles: '+(cp?'OK':'bloqueado'));log('Pasar la posta: sin compartir directo → descarga');lockIt();return}
  try{await navigator.share({files:p.fs,text:TEXTO(),title:'Posta De Tercera a Primera'});
@@ -289,9 +297,12 @@ $('bSave').onclick=async()=>{await refresh();download(FILES.posta||FILES.json);m
 $('bCard').onclick=async()=>{try{if(navigator.canShare&&navigator.canShare({files:[CARD]})){await navigator.share({files:[CARD],text:TEXTO()});log('Tarjeta: compartida OK')}else{download(CARD);log('Tarjeta: descargada')}}catch(e){log('Tarjeta: '+e.name)}};
 let lastNota=null;async function refresh(){const n=$('nota').value;if(n!==lastNota){lastNota=n;const posta=Object.assign({},POSTA,{nota:n});const h=await sha(JSON.stringify(posta)+SAVE);PAYLOAD=JSON.stringify({cefPosta:1,posta,huella:h,partida:SAVE});const u=new TextEncoder().encode(PAYLOAD);
  if(hasCS){const gz=await gzip(u);FILES.posta=new File([gz],FILES.posta.name,{type:'application/octet-stream'});FILES.txt=new File([u8b64(gz)],FILES.txt.name,{type:'text/plain'})}FILES.json=new File([PAYLOAD],FILES.json.name,{type:'application/json'})}}
+async function tryF(ks){const fs=ks.map(k=>k==='card'?CARD:FILES[k]);const n=ks.join('+');
+ try{await navigator.share({files:fs,text:TEXTO()});log('Prueba '+n+': compartido OK');msg('Prueba '+n+': funcionó.','ok')}
+ catch(e){log('Prueba '+n+': '+e.name+(e.name==='AbortError'?' (cancelado o rechazado)':' '+e.message));msg('Prueba '+n+': '+e.name,e.name==='AbortError'?'warn':'err')}}
 function lockIt(){$('bShare').disabled=$('bSave').disabled=true;$('nota').disabled=true;$('lock').style.display='block'}
 function unlock(){$('bShare').disabled=$('bSave').disabled=false;$('nota').disabled=false;$('lock').style.display='none';$('msg').className='msg'}
-$('nota').oninput=()=>{$('cn').textContent=$('nota').value.length};$('cn').textContent=$('nota').value.length;
+let TMR=0;$('nota').oninput=()=>{$('cn').textContent=$('nota').value.length;clearTimeout(TMR);TMR=setTimeout(refresh,400)};$('cn').textContent=$('nota').value.length;
 // ---------- recibir ----------
 $('fin').onchange=async e=>{const f=e.target.files[0],R=$('recv');R.className='recv on';if(!f)return;R.innerHTML='Abriendo…';const t=performance.now();
  try{let u=new Uint8Array(await f.arrayBuffer());let kind='';
