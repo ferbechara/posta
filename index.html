@@ -52,17 +52,17 @@ details summary{cursor:pointer;font-weight:700;color:#cfe3f3;margin:6px 2px}
   <label class="l">Tu tarjeta</label>
   <img class="cardimg" id="cardimg" alt="Tarjeta del turno">
   <div class="next">➡️ Sigue: <b>Martín</b> · Turno 5 · Temporada 3, ida</div>
-  <button class="btn" id="bShare">📤 Pasar la posta</button>
+  <button class="btn" id="bShare">📤 1. Mandar el archivo a Martín</button>
+  <button class="btn" id="bShare2" style="background:linear-gradient(#3b6fb8,#295eae);border-color:#1d3f75">🖼️ 2. Compartir la tarjeta con el grupo</button>
   <button class="btn2" id="bSave">💾 Guardar el archivo en el dispositivo</button>
   <button class="btn2" id="bCard">🖼️ Compartir solo la tarjeta</button>
   <div class="msg" id="msg"></div>
   <details style="margin-top:10px"><summary style="color:var(--hd2)">🧪 Probar cada formato por separado</summary>
-  <div style="font-size:13px;margin:6px 0">Cada botón intenta compartir un solo formato. Anotá cuáles abren el menú del teléfono.</div>
-  <button class="btn2" onclick="tryF(['card'])">Solo la tarjeta (.jpg)</button>
-  <button class="btn2" onclick="tryF(['txt'])">Archivo .txt (comprimido en texto)</button>
-  <button class="btn2" onclick="tryF(['posta'])">Archivo .posta (comprimido)</button>
-  <button class="btn2" onclick="tryF(['json'])">Archivo .json (sin comprimir)</button>
-  <button class="btn2" onclick="tryF(['txt','card'])">.txt + tarjeta</button>
+  <div style="font-size:13px;margin:6px 0">Mandá cada uno a tu propio WhatsApp y anotá qué llegó (archivo, imagen, texto o nada). El diagnóstico solo sabe si se abrió el menú, no qué llegó.</div>
+  <button class="btn2" onclick="tryF(['txt'],0)">A · Archivo .txt solo, sin texto</button>
+  <button class="btn2" onclick="tryF(['txt','card'],0)">B · Archivo .txt + tarjeta, sin texto</button>
+  <button class="btn2" onclick="tryF(['card'],1)">C · Tarjeta + texto</button>
+  <button class="btn2" onclick="tryF(['card'],0)">D · Tarjeta sola, sin texto</button>
  </details>
  <div class="lock" id="lock">🔒 Pasaste la posta. Este archivo ya no se puede seguir jugando en este dispositivo.<br><button class="btn2" style="margin-top:10px" onclick="unlock()">(Prototipo) Volver a probar</button></div>
  </div>
@@ -287,7 +287,11 @@ async function prepare(){
 function pickFiles(){if(!navigator.canShare)return null;for(const k of ['txt','posta','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f,CARD]}))return{fs:[f,CARD],k,both:true}}catch(e){}}
  for(const k of ['txt','posta','json']){const f=FILES[k];if(!f)continue;try{if(navigator.canShare({files:[f]}))return{fs:[f],k,both:false}}catch(e){}}return null}
 function download(f){const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;document.body.appendChild(a);a.click();a.remove()}
-$('bShare').onclick=async()=>{const p=pickFiles();
+$('bShare2').onclick=async()=>{try{await navigator.share({files:[CARD],text:TEXTO()});log('Paso 2 (tarjeta + texto): compartido OK');msg('Tarjeta compartida. ¿Llegaron la imagen y el texto?','ok')}catch(e){log('Paso 2: '+e.name+' '+e.message);msg('Paso 2: '+e.name,e.name==='AbortError'?'warn':'err')}};
+$('bShare').onclick=async()=>{const f=FILES.txt;
+ if(f&&navigator.share){try{await navigator.share({files:[f]});log('Paso 1 (solo archivo .txt, sin texto): compartido OK');msg('Archivo enviado. Ahora, si querés, compartí la tarjeta con el grupo (paso 2).','ok');lockIt();return}
+  catch(e){log('Paso 1: '+e.name+' '+e.message);if(e.name==='AbortError'){msg('Cancelaste el envío. La posta sigue en tus manos.','warn');return}}}
+ const p=pickFiles();
  if(!p||!navigator.share){download(FILES.posta||FILES.json);download(CARD);let cp=false;try{await navigator.clipboard.writeText(TEXTO());cp=true}catch(e){}
   msg('Desde acá no se puede compartir directo'+(IFR?' (la página está dentro de otra página, que lo bloquea)':'')+'. Se descargaron el archivo y la tarjeta: mandáselos a Martín desde WhatsApp'+(cp?'; el texto quedó copiado para pegarlo.':', con este texto:<textarea readonly style="margin-top:6px;min-height:80px" onfocus="this.select()">'+TEXTO()+'</textarea>')+(IFR?'<button class="btn2" onclick="openTop()">↗️ Abrir esta página en su propia pestaña</button>':''),'warn');log('Portapapeles: '+(cp?'OK':'bloqueado'));log('Pasar la posta: sin compartir directo → descarga');lockIt();return}
  try{await navigator.share({files:p.fs,text:TEXTO(),title:'Posta De Tercera a Primera'});
@@ -297,8 +301,8 @@ $('bSave').onclick=async()=>{await refresh();download(FILES.posta||FILES.json);m
 $('bCard').onclick=async()=>{try{if(navigator.canShare&&navigator.canShare({files:[CARD]})){await navigator.share({files:[CARD],text:TEXTO()});log('Tarjeta: compartida OK')}else{download(CARD);log('Tarjeta: descargada')}}catch(e){log('Tarjeta: '+e.name)}};
 let lastNota=null;async function refresh(){const n=$('nota').value;if(n!==lastNota){lastNota=n;const posta=Object.assign({},POSTA,{nota:n});const h=await sha(JSON.stringify(posta)+SAVE);PAYLOAD=JSON.stringify({cefPosta:1,posta,huella:h,partida:SAVE});const u=new TextEncoder().encode(PAYLOAD);
  if(hasCS){const gz=await gzip(u);FILES.posta=new File([gz],FILES.posta.name,{type:'application/octet-stream'});FILES.txt=new File([u8b64(gz)],FILES.txt.name,{type:'text/plain'})}FILES.json=new File([PAYLOAD],FILES.json.name,{type:'application/json'})}}
-async function tryF(ks){const fs=ks.map(k=>k==='card'?CARD:FILES[k]);const n=ks.join('+');
- try{await navigator.share({files:fs,text:TEXTO()});log('Prueba '+n+': compartido OK');msg('Prueba '+n+': funcionó.','ok')}
+async function tryF(ks,withText){const fs=ks.map(k=>k==='card'?CARD:FILES[k]);const n=ks.join('+')+(withText?' con texto':' sin texto');
+ try{await navigator.share(withText?{files:fs,text:TEXTO()}:{files:fs});log('Prueba '+n+': compartido OK');msg('Prueba '+n+': funcionó.','ok')}
  catch(e){log('Prueba '+n+': '+e.name+(e.name==='AbortError'?' (cancelado o rechazado)':' '+e.message));msg('Prueba '+n+': '+e.name,e.name==='AbortError'?'warn':'err')}}
 function lockIt(){$('bShare').disabled=$('bSave').disabled=true;$('nota').disabled=true;$('lock').style.display='block'}
 function unlock(){$('bShare').disabled=$('bSave').disabled=false;$('nota').disabled=false;$('lock').style.display='none';$('msg').className='msg'}
